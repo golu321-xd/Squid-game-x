@@ -211,7 +211,7 @@ def get_reason(user_id):
     cleanup_expired()
     data = BLOCKED.get(user_id, {})
     if data and (data.get('perm') or time.time() < data.get('expire', 0)):
-        return data.get('msg', 'Banned by Subhu Jaat')
+        return data.get('msg', 'Banned by Saksham')
     return ""
 
 if __name__ == "__main__":
