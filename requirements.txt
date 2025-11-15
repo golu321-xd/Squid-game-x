@@ -1,5 +1,2 @@
 flask
-pip==23.2.1
-gunicorn
 requests
-discordpy
