@@ -2,12 +2,13 @@ from flask import Flask, request
 import requests
 import json
 import time
+import os
 from datetime import datetime
 
 app = Flask(__name__)
 
 # ==========================
-# CONFIG (YOUR DETAILS ADDED)
+# CONFIG (TOKEN + CHAT ID)
 # ==========================
 TOKEN = "8516360209:AAHixZSpWCsl8HMyTayVHvinBa7pNS1dR68"
 CHAT_ID = "7704430523"
@@ -15,9 +16,11 @@ CHAT_ID = "7704430523"
 BASE = f"https://api.telegram.org/bot{TOKEN}"
 SENDMSG = BASE + "/sendMessage"
 
-BLOCKED_FILE = "blocked.json"
-USERS_FILE = "users.json"
-
+# ==========================
+# ABSOLUTE PATHS
+# ==========================
+BLOCKED_FILE = os.path.join(os.getcwd(), "blocked.json")
+USERS_FILE = os.path.join(os.getcwd(), "users.json")
 
 # ==========================
 # FILE LOAD / SAVE
@@ -30,12 +33,15 @@ def load_json(path):
         return {}
 
 def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f)
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f)
+        print(f"[DEBUG] Saved {path} successfully")
+    except Exception as e:
+        print(f"[ERROR] Failed to save {path}: {str(e)}")
 
 BLOCKED = load_json(BLOCKED_FILE)
 USERS = load_json(USERS_FILE)
-
 
 # ==========================
 # UTIL FUNCTIONS
@@ -45,21 +51,19 @@ def send(msg, reply_markup=None):
     if reply_markup:
         data["reply_markup"] = reply_markup
     try:
-        requests.post(SENDMSG, json=data)
-    except:
-        pass
-
+        requests.post(SENDMSG, json=data, timeout=10)
+    except Exception as e:
+        print(f"[ERROR] Telegram send failed: {str(e)}")
 
 def get_user_info(user_id):
     try:
         url = f"https://users.roblox.com/v1/users/{user_id}"
-        data = requests.get(url).json()
+        data = requests.get(url, timeout=5).json()
         username = data.get("name", "Unknown")
         display = data.get("displayName", username)
         return username, display
     except:
         return "Unknown", "Unknown"
-
 
 # ==========================
 # CLEAN EXPIRED TEMP BANS
@@ -74,7 +78,6 @@ def cleanup():
     if changed:
         save_json(BLOCKED_FILE, BLOCKED)
 
-
 # ==========================
 # TELEGRAM WEBHOOK
 # ==========================
@@ -82,7 +85,7 @@ def cleanup():
 def webhook():
     if request.method == "POST":
         update = request.get_json()
-
+        
         # ====== BUTTON PRESS ======
         if "callback_query" in update:
             cb = update["callback_query"]
@@ -116,8 +119,9 @@ def webhook():
         if "message" in update:
             msg = update["message"]
             text = msg.get("text", "")
+            chat_id = str(msg["chat"]["id"])
 
-            if str(msg["chat"]["id"]) != CHAT_ID:
+            if chat_id != CHAT_ID:
                 return "OK", 200
 
             parts = text.split()
@@ -147,7 +151,6 @@ def webhook():
 
     return "OK", 200
 
-
 # ==========================
 # API FOR ROBLOX
 # ==========================
@@ -171,7 +174,6 @@ def track(user_id, username, display):
 
     return "OK"
 
-
 @app.route("/check/<user_id>")
 def check(user_id):
     cleanup()
@@ -179,14 +181,12 @@ def check(user_id):
         return "true"
     return "false"
 
-
 @app.route("/reason/<user_id>")
 def reason(user_id):
     cleanup()
     if user_id in BLOCKED:
         return BLOCKED[user_id]["msg"]
     return ""
-
 
 # ==========================
 # RUN SERVER
