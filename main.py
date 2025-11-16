@@ -1,60 +1,60 @@
 from flask import Flask, request
 import requests
-import json
 import time
-import os
+import json
 from datetime import datetime
 
 app = Flask(__name__)
 
-# ==========================
-# CONFIG (TOKEN + CHAT ID)
-# ==========================
 TOKEN = "8516360209:AAHixZSpWCsl8HMyTayVHvinBa7pNS1dR68"
 CHAT_ID = "7704430523"
 
-BASE = f"https://api.telegram.org/bot{TOKEN}"
-SENDMSG = BASE + "/sendMessage"
+# FILES
+BLOCKED_FILE = "blocked.json"
+USERS_FILE = "users.json"
 
-# ==========================
-# ABSOLUTE PATHS
-# ==========================
-BLOCKED_FILE = os.path.join(os.getcwd(), "blocked.json")
-USERS_FILE = os.path.join(os.getcwd(), "users.json")
-
-# ==========================
-# FILE LOAD / SAVE
-# ==========================
-def load_json(path):
+# Load blocked users
+def load_blocked():
     try:
-        with open(path, "r") as f:
+        with open(BLOCKED_FILE, 'r') as f:
             return json.load(f)
     except:
         return {}
 
-def save_json(path, data):
+# Save blocked users
+def save_blocked(data):
+    with open(BLOCKED_FILE, 'w') as f:
+        json.dump(data, f)
+
+# Load executed users
+def load_users():
     try:
-        with open(path, "w") as f:
-            json.dump(data, f)
-        print(f"[DEBUG] Saved {path} successfully")
-    except Exception as e:
-        print(f"[ERROR] Failed to save {path}: {str(e)}")
+        with open(USERS_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
 
-BLOCKED = load_json(BLOCKED_FILE)
-USERS = load_json(USERS_FILE)
+# Save executed users
+def save_users(data):
+    with open(USERS_FILE, 'w') as f:
+        json.dump(data, f)
 
-# ==========================
-# UTIL FUNCTIONS
-# ==========================
-def send(msg, reply_markup=None):
-    data = {"chat_id": CHAT_ID, "text": msg}
-    if reply_markup:
-        data["reply_markup"] = reply_markup
-    try:
-        requests.post(SENDMSG, json=data, timeout=10)
-    except Exception as e:
-        print(f"[ERROR] Telegram send failed: {str(e)}")
+BLOCKED = load_blocked()
+USERS = load_users()
+WAITING = {}
 
+# Clean expired temp bans
+def cleanup_expired():
+    changed = False
+    for uid in list(BLOCKED.keys()):
+        data = BLOCKED[uid]
+        if not data.get('perm') and time.time() > data.get('expire', 0):
+            del BLOCKED[uid]
+            changed = True
+    if changed:
+        save_blocked(BLOCKED)
+
+# Get user info (NEW API)
 def get_user_info(user_id):
     try:
         url = f"https://users.roblox.com/v1/users/{user_id}"
@@ -65,131 +65,154 @@ def get_user_info(user_id):
     except:
         return "Unknown", "Unknown"
 
-# ==========================
-# CLEAN EXPIRED TEMP BANS
-# ==========================
-def cleanup():
-    changed = False
-    for uid in list(BLOCKED.keys()):
-        data = BLOCKED[uid]
-        if not data.get("perm") and time.time() > data.get("expire", 0):
-            del BLOCKED[uid]
-            changed = True
-    if changed:
-        save_json(BLOCKED_FILE, BLOCKED)
+def send(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    try:
+        requests.post(url, data={'chat_id': CHAT_ID, 'text': msg}, timeout=10)
+    except:
+        pass
 
-# ==========================
-# TELEGRAM WEBHOOK
-# ==========================
-@app.route("/", methods=["POST", "GET"])
+@app.route('/', methods=['GET', 'POST'])
 def webhook():
-    if request.method == "POST":
-        update = request.get_json()
-        
-        # ====== BUTTON PRESS ======
-        if "callback_query" in update:
-            cb = update["callback_query"]
-            data = cb["data"]
+    if request.method == 'POST':
+        try:
+            update = request.get_json()
+            if 'message' in update:
+                msg = update['message']
+                chat_id = str(msg['chat']['id'])
+                text = msg.get('text', '').strip()
 
-            # BAN
-            if data.startswith("ban_"):
-                user_id = data.replace("ban_", "")
-                username, display = get_user_info(user_id)
+                if chat_id != CHAT_ID:
+                    return "OK", 200
 
-                BLOCKED[user_id] = {"perm": True, "msg": "Banned by Saksham"}
-                save_json(BLOCKED_FILE, BLOCKED)
+                # === WAITING FOR REASON ===
+                if chat_id in WAITING:
+                    action = WAITING[chat_id]['action']
+                    user_id = WAITING[chat_id]['user_id']
+                    username, display = get_user_info(user_id)
 
-                send(f"🚫 PERM BANNED\nName: {display}\nID: {user_id}")
-                send(f"✅ This player is successfully blocked!")
+                    if action == 'add':
+                        BLOCKED[user_id] = {'perm': True, 'msg': text}
+                        send(f"PERM BANNED\n"
+                             f"Name: {display} (@{username})\n"
+                             f"ID: {user_id}\n"
+                             f"Reason: {text}")
+                    elif action == 'tempban':
+                        mins = WAITING[chat_id].get('mins', 5)
+                        expire = time.time() + (mins * 60)
+                        BLOCKED[user_id] = {'perm': False, 'msg': text, 'expire': expire}
+                        send(f"TEMP BANNED ({mins}m)\n"
+                             f"Name: {display} (@{username})\n"
+                             f"ID: {user_id}\n"
+                             f"Reason: {text}")
 
-            # UNBAN
-            elif data.startswith("unban_"):
-                user_id = data.replace("unban_", "")
-                username, display = get_user_info(user_id)
+                    del WAITING[chat_id]
+                    save_blocked(BLOCKED)
+                    return "OK", 200
 
-                BLOCKED.pop(user_id, None)
-                save_json(BLOCKED_FILE, BLOCKED)
+                # === COMMANDS ===
+                parts = text.split()
+                cmd = parts[0]
 
-                send(f"♻️ UNBANNED\nName: {display}\nID: {user_id}")
-                send(f"✅ This player is successfully unblocked!")
+                # /add 123
+                if cmd == '/add' and len(parts) >= 2:
+                    user_id = parts[1]
+                    username, display = get_user_info(user_id)
+                    WAITING[chat_id] = {'action': 'add', 'user_id': user_id}
+                    send(f"PERM BAN\n"
+                         f"Name: {display} (@{username})\n"
+                         f"ID: {user_id}\n\n"
+                         f"Type kick reason:")
+                    return "OK", 200
 
-            return "OK", 200
+                # /tempban 123 10
+                elif cmd == '/tempban' and len(parts) >= 3:
+                    user_id, mins = parts[1], parts[2]
+                    username, display = get_user_info(user_id)
+                    WAITING[chat_id] = {'action': 'tempban', 'user_id': user_id, 'mins': int(mins)}
+                    send(f"TEMP BAN ({mins}m)\n"
+                         f"Name: {display} (@{username})\n"
+                         f"ID: {user_id}\n\n"
+                         f"Type kick reason:")
+                    return "OK", 200
 
-        # ====== MANUAL COMMANDS ======
-        if "message" in update:
-            msg = update["message"]
-            text = msg.get("text", "")
-            chat_id = str(msg["chat"]["id"])
+                # /remove 123
+                elif cmd == '/remove' and len(parts) >= 2:
+                    user_id = parts[1]
+                    username, display = get_user_info(user_id)
+                    BLOCKED.pop(user_id, None)
+                    save_blocked(BLOCKED)
+                    send(f"UNBANNED\n"
+                         f"Name: {display} (@{username})\n"
+                         f"ID: {user_id}")
+                    return "OK", 200
 
-            if chat_id != CHAT_ID:
-                return "OK", 200
+                # /list
+                elif cmd == '/list':
+                    cleanup_expired()
+                    if not BLOCKED:
+                        send("No one blocked.")
+                    else:
+                        res = "BLOCKED USERS:\n\n"
+                        for i, (uid, data) in enumerate(BLOCKED.items(), 1):
+                            username, display = get_user_info(uid)
+                            t = "PERM" if data['perm'] else f"{int((data['expire'] - time.time())/60)}m left"
+                            res += f"{i}. {display} (@{username})\n   ID: {uid} [{t}]\n   Reason: {data['msg']}\n\n"
+                        send(res)
+                    return "OK", 200
 
-            parts = text.split()
-            cmd = parts[0]
+                # /clear
+                elif cmd == '/clear':
+                    BLOCKED.clear()
+                    save_blocked(BLOCKED)
+                    send("All bans cleared!")
+                    return "OK", 200
 
-            if cmd == "/list":
-                cleanup()
-                if not BLOCKED:
-                    send("No blocked users.")
-                else:
-                    res = "🚫 BLOCKED USERS:\n\n"
-                    for uid, data in BLOCKED.items():
-                        username, display = get_user_info(uid)
-                        res += f"{display} (@{username})\nID: {uid}\nReason: {data['msg']}\n\n"
-                    send(res)
+                # /users - See who executed
+                elif cmd == '/users':
+                    if not USERS:
+                        send("No users tracked yet.")
+                    else:
+                        res = "SCRIPT USERS:\n\n"
+                        for i, (uid, info) in enumerate(USERS.items(), 1):
+                            username, display = get_user_info(uid)
+                            dt = datetime.fromtimestamp(info['time']).strftime("%d %b %I:%M %p")
+                            res += f"{i}. {display} (@{username})\n   ID: {uid}\n   Time: {dt}\n\n"
+                        send(res)
+                    return "OK", 200
 
-            elif cmd == "/users":
-                if not USERS:
-                    send("No users tracked yet.")
-                else:
-                    res = "⚡ SCRIPT USERS:\n\n"
-                    for uid, info in USERS.items():
-                        username, display = get_user_info(uid)
-                        ts = datetime.fromtimestamp(info["time"]).strftime("%d %b %I:%M %p")
-                        res += f"{display} (@{username})\nID: {uid}\nTime: {ts}\n\n"
-                    send(res)
-
+        except Exception as e:
+            send(f"Error: {str(e)}")
     return "OK", 200
 
-# ==========================
-# API FOR ROBLOX
-# ==========================
-@app.route("/track/<user_id>/<username>/<display>")
-def track(user_id, username, display):
-
-    USERS[user_id] = {"username": username, "display": display, "time": time.time()}
-    save_json(USERS_FILE, USERS)
-
-    send(
-        f"⚡ SCRIPT EXECUTED\nName: {display}\nID: {user_id}",
-        reply_markup={
-            "inline_keyboard": [
-                [
-                    {"text": "🚫 Ban", "callback_data": f"ban_{user_id}"},
-                    {"text": "♻️ Unban", "callback_data": f"unban_{user_id}"}
-                ]
-            ]
-        }
-    )
-
-    return "OK"
-
-@app.route("/check/<user_id>")
+# === /check API ===
+@app.route('/check/<user_id>')
 def check(user_id):
-    cleanup()
-    if user_id in BLOCKED:
+    cleanup_expired()
+    data = BLOCKED.get(user_id, {})
+    if data.get('perm') or (not data.get('perm') and time.time() < data.get('expire', 0)):
         return "true"
     return "false"
 
-@app.route("/reason/<user_id>")
-def reason(user_id):
-    cleanup()
-    if user_id in BLOCKED:
-        return BLOCKED[user_id]["msg"]
+# === /track API (called by script) ===
+@app.route('/track/<user_id>/<username>/<display>')
+def track(user_id, username, display):
+    USERS[user_id] = {
+        'username': username,
+        'display': display,
+        'time': time.time()
+    }
+    save_users(USERS)
+    return "OK"
+
+# === /reason API (CUSTOM KICK MESSAGE) ===
+@app.route('/reason/<user_id>')
+def get_reason(user_id):
+    cleanup_expired()
+    data = BLOCKED.get(user_id, {})
+    if data and (data.get('perm') or time.time() < data.get('expire', 0)):
+        return data.get('msg', 'Banned by Subhu Jaat')
     return ""
 
-# ==========================
-# RUN SERVER
-# ==========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host='0.0.0.0', port=8080)
