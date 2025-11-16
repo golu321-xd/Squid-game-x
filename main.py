@@ -6,8 +6,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-TOKEN="8535135495:AAGiAAw1Un5l7uYkkfS27xscYE1NU5FTE"
-CHAT_ID ="7704430523"
+TOKEN = "8516360209:AAHixZSpWCsl8HMyTayVHvinBa7pNS1dR68"
+CHAT_ID = "7704430523"
 
 # FILES
 BLOCKED_FILE = "blocked.json"
@@ -211,7 +211,7 @@ def get_reason(user_id):
     cleanup_expired()
     data = BLOCKED.get(user_id, {})
     if data and (data.get('perm') or time.time() < data.get('expire', 0)):
-        return data.get('msg', 'Banned by Saksham')
+        return data.get('msg', 'Banned by Subhu Jaat')
     return ""
 
 if __name__ == "__main__":
