@@ -42,10 +42,8 @@ USERS = load_json(USERS_FILE)
 # ==========================
 def send(msg, reply_markup=None):
     data = {"chat_id": CHAT_ID, "text": msg}
-
     if reply_markup:
         data["reply_markup"] = reply_markup
-
     try:
         requests.post(SENDMSG, json=data)
     except:
@@ -95,13 +93,11 @@ def webhook():
                 user_id = data.replace("ban_", "")
                 username, display = get_user_info(user_id)
 
-                BLOCKED[user_id] = {
-                    "perm": True,
-                    "msg": "Banned by Saksham"
-                }
+                BLOCKED[user_id] = {"perm": True, "msg": "Banned by Saksham"}
                 save_json(BLOCKED_FILE, BLOCKED)
 
                 send(f"🚫 PERM BANNED\nName: {display}\nID: {user_id}")
+                send(f"✅ This player is successfully blocked!")
 
             # UNBAN
             elif data.startswith("unban_"):
@@ -112,9 +108,9 @@ def webhook():
                 save_json(BLOCKED_FILE, BLOCKED)
 
                 send(f"♻️ UNBANNED\nName: {display}\nID: {user_id}")
+                send(f"✅ This player is successfully unblocked!")
 
             return "OK", 200
-
 
         # ====== MANUAL COMMANDS ======
         if "message" in update:
@@ -155,15 +151,10 @@ def webhook():
 # ==========================
 # API FOR ROBLOX
 # ==========================
-
 @app.route("/track/<user_id>/<username>/<display>")
 def track(user_id, username, display):
 
-    USERS[user_id] = {
-        "username": username,
-        "display": display,
-        "time": time.time()
-    }
+    USERS[user_id] = {"username": username, "display": display, "time": time.time()}
     save_json(USERS_FILE, USERS)
 
     send(
