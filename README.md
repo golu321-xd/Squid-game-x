@@ -1,1 +1,1 @@
-# Squidgamex
+# SquidGameX
