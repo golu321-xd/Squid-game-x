@@ -6,7 +6,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-TOKEN = "8516360209:AAHixZSpWCsl8HMyTayVHvinBa7pNS1dR68"
+TOKEN = "8542259973:AAELrCAnV4et6S_RvxA-UwVTLXN2lKDTqKY"
 CHAT_ID = "7704430523"
 
 # FILES
