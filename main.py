@@ -168,7 +168,7 @@ def webhook():
                     send("All bans cleared!")
                     return "OK", 200
 
-                # /users - See who executed
+                # /users
                 elif cmd == '/users':
                     if not USERS:
                         send("No users tracked yet.")
@@ -184,6 +184,16 @@ def webhook():
         except Exception as e:
             send(f"Error: {str(e)}")
     return "OK", 200
+
+
+# === TEST ROUTE (added) ===
+@app.route('/test', methods=['POST'])
+def test():
+    data = request.get_json()
+    username = data.get("username", "Unknown User")
+    send(f"Test Triggered!\nUser: {username}")
+    return "OK"
+
 
 # === /check API ===
 @app.route('/check/<user_id>')
