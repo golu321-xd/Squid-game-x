@@ -11,6 +11,7 @@ CHAT_ID = "7704430523"
 BLOCK_FILE = "blocked.json"
 USER_FILE = "users.json"
 
+
 def load_data(file):
     if not os.path.exists(file):
         with open(file, "w") as f:
@@ -18,9 +19,11 @@ def load_data(file):
     with open(file, "r") as f:
         return json.load(f)
 
+
 def save_data(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
+
 
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -42,17 +45,17 @@ def track():
 
     username = data["username"]
 
-    # Load blocked users
+    # load files
     blocked = load_data(BLOCK_FILE)
-
-    # Save user in users.json
     users = load_data(USER_FILE)
+
+    # Save user if not already saved
     if username not in users:
         users.append(username)
         save_data(USER_FILE, users)
 
-        # Send Telegram notification
-        send_message(f"🟢 Script executed by: {username}")
+    # 🟢 SEND MESSAGE ON EVERY EXECUTION (important)
+    send_message(f"🟢 Script executed by: {username}")
 
     # If banned → Roblox ko batado
     if username in blocked:
@@ -71,7 +74,6 @@ def webhook():
 
     text = data["message"].get("text", "")
 
-    # Load blocked list
     blocked = load_data(BLOCK_FILE)
 
     # BAN
@@ -83,6 +85,7 @@ def webhook():
             return "ok"
 
         username = parts[1]
+
         if username not in blocked:
             blocked.append(username)
             save_data(BLOCK_FILE, blocked)
@@ -99,6 +102,7 @@ def webhook():
             return "ok"
 
         username = parts[1]
+
         if username in blocked:
             blocked.remove(username)
             save_data(BLOCK_FILE, blocked)
