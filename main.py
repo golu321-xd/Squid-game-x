@@ -6,7 +6,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-TOKEN = "8542259973:AAELrCAnV4et6S_RvxA-UwVTLXN2lKDTqKY"
+TOKEN = "8535135495:AAGiAAw1Un5l-7uYkkfS-27xscYE1NU5FTE"
 CHAT_ID = "7704430523"
 
 # FILES
@@ -211,7 +211,7 @@ def get_reason(user_id):
     cleanup_expired()
     data = BLOCKED.get(user_id, {})
     if data and (data.get('perm') or time.time() < data.get('expire', 0)):
-        return data.get('msg', 'Banned by Subhu Jaat')
+        return data.get('msg', 'Banned by Saksham')
     return ""
 
 if __name__ == "__main__":
