@@ -6,8 +6,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-TOKEN = "8477934891:AAE7D1WUEWWHmK8IsmNhN1hjDJgH4gAf2EA"
-CHAT_ID = "6179725591"
+TOKEN = "8535135495:AAGiAAw1Un5l-7uYkkfS-27xscYE1NU5FTEA"
+CHAT_ID = "7704430523"
 
 # FILES
 BLOCKED_FILE = "blocked.json"
