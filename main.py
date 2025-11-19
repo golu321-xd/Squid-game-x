@@ -6,10 +6,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# === YOUR SETTINGS ===
 TOKEN = "8535135495:AAGiAAw1Un5l-7uYkkfS-27xscYE1NU5FTE"
 CHAT_ID = "7704430523"
-ADMIN_KEY = "goligolu@123"
 
 # FILES
 BLOCKED_FILE = "blocked.json"
@@ -187,7 +185,6 @@ def webhook():
             send(f"Error: {str(e)}")
     return "OK", 200
 
-
 # === /check API ===
 @app.route('/check/<user_id>')
 def check(user_id):
@@ -197,8 +194,7 @@ def check(user_id):
         return "true"
     return "false"
 
-
-# === /track API ===
+# === /track API (called by script) ===
 @app.route('/track/<user_id>/<username>/<display>')
 def track(user_id, username, display):
     USERS[user_id] = {
@@ -209,8 +205,7 @@ def track(user_id, username, display):
     save_users(USERS)
     return "OK"
 
-
-# === /reason API ===
+# === /reason API (CUSTOM KICK MESSAGE) ===
 @app.route('/reason/<user_id>')
 def get_reason(user_id):
     cleanup_expired()
@@ -218,7 +213,6 @@ def get_reason(user_id):
     if data and (data.get('perm') or time.time() < data.get('expire', 0)):
         return data.get('msg', 'Banned by Subhu Jaat')
     return ""
-
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
