@@ -66,9 +66,9 @@ def get_user_info(user_id):
         return "Unknown", "Unknown"
 
 def send(msg):
-    url = f"https://api.telegram.org/bot8535135495:AAGiAAw1Un5l-7uYkkfS-27xscYE1NU5FTE/sendMessage"
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
-        requests.post(url, data={'chat_id': 7704430523, 'text': msg}, timeout=10)
+        requests.post(url, data={'chat_id': CHAT_ID, 'text': msg}, timeout=10)
     except:
         pass
 
